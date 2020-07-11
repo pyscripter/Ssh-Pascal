@@ -11,6 +11,9 @@ Pascal Ssh library based on [libssh2](https://www.libssh2.org/).  Libssh2 is a m
     - Port forwarding (currently only local)
     - scp support
 
+## Installation
+There are no components to isntall.  Just clone the repository and add the Source folder to your library path.
+
 ## Deployment
 The following dynamic libraries should be deployed in the same directory as the executable.
 - libssh2.dll
@@ -21,6 +24,10 @@ Win32 and Win64 binaries can be found in the Bin directory.  Updated Windows bin
 
 ## Documentation
 Currently the best (only) way to learn how to use the library is to study the demos and the source code.
+
+## Platform and FPC support
+Currently only Delphi (versions with generics) and Windows 32-bit and 64-bit are supported
+libssh2 is available on Linux, iOS, OSX, and other platforms.  So the library could be extended to provide support for such platforms.  Pull requests to provide compatibility with other platforms and/or FPC would be welcome.
 
 ## Limitations
 - scp does not work with Windows hosts (Sftp does though).
