@@ -1,11 +1,11 @@
 # Ssh-pascal
-Pascal Ssh library based on [libssh2](https://www.libssh2.org/).  Libssh2 is a mature ssh library used by PHP (built-in), Rust and many other languages and applications.
+Pascal Ssh library based on [libssh2](https://www.libssh2.org/). Libssh2 is a mature ssh library used by PHP (built-in), Rust and many other languages and applications.
 
 ## Features
 - Extensive ssh features
   - Support for different authorization methods (publickey, password, agent, hostbased and keyboard-interactive)
   - Known host management.
-  - Execution of commads on the host capturing stdout and stderr
+  - Execution of commands on the host capturing stdout and stderr
   - Comprehensive sftp support
   - Port forwarding (currently only local)
   - scp support
