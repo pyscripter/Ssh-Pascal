@@ -35,5 +35,5 @@ libssh2 is available on Linux, iOS, OSX, and other platforms.  So the library co
 - keyboard-interactive authorization does not work with Windows hosts (it reverts to password authorization).
 
 ## Credits
-The C header translation draw from https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
+The C header translations draw from https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
 Copyright (c) 2010, Zeljko Marjanovic (MPL 1.1).  Everything else was written from scratch.
