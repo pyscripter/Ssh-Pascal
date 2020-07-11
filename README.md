@@ -1,4 +1,4 @@
-# Ssh-pascal
+# Ssh-Pascal
 Pascal Ssh library based on [libssh2](https://www.libssh2.org/). Libssh2 is a mature ssh library used by PHP (built-in), Rust and many other languages and applications.
 
 ## Features
@@ -13,7 +13,7 @@ Pascal Ssh library based on [libssh2](https://www.libssh2.org/). Libssh2 is a ma
 - Lower-level usage is possible.
 
 ## Installation
-There are no components to isntall.  Just clone the repository and add the Source folder to your library path.
+There are no components to install.  Just clone the repository and add the Source folder to your library path.
 
 ## Deployment
 The following dynamic libraries should be deployed in the same directory as the executable.
