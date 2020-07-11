@@ -5,4 +5,4 @@ Ssh-Pacal requires the presence of
 
 in the same directory as the executable.
 
-Win32 and Win64 binaries can be found in this directory.  Updated Windows binaries can be foudn at the [PHP repository](https://windows.php.net/downloads/php-sdk/deps/).
+This directory contains Win32 and Win64 binaries.  Updated Windows binaries can be found at the [PHP repository](https://windows.php.net/downloads/php-sdk/deps/).
