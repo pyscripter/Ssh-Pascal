@@ -484,7 +484,7 @@ var
 begin
   if FAddr <> nil then
   begin
-    libssh2_session_disconnect(FAddr, M.AsAnsi(Msg_Disconnect).ToPointer);
+    libssh2_session_disconnect(FAddr, M.AsAnsi(Msg_Disconnect, FCodePage).ToPointer);
     libssh2_session_free(FAddr);
   end;
   FAddr := nil;
