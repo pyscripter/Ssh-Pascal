@@ -87,7 +87,9 @@ type
     function UserAuthNone(const UserName: string): Boolean;
     function UserAuthPass(const UserName, Password: string): Boolean;
     function UserAuthInteractive(const UserName: string): Boolean;
+    // Uses TKeybInteractiveCallback (needs to be set) to get the passphrase
     function UserAuthKey(const UserName: string; PrivateKeyFile: string): Boolean; overload;
+    // PassPhrase can be nil
     function UserAuthKey(const UserName: string; PrivateKeyFile: string; PassPhrase: string): Boolean; overload;
     function UserAuthAgent(const UserName: string): Boolean;
     function GetUserName: string;
