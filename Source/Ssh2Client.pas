@@ -37,7 +37,10 @@ type
   TKnownHostCheckState = (khcsMatch, khcsMisMatch, khcsNotFound, khcsFailure);
   TKnownHostCheckAction = (khcaContinue, khcaStop, khcaAsk);
   TKnownHostCheckPolicy = array [TKnownHostCheckState] of TKnownHostCheckAction;
+var
+  DefKnownHostCheckPolicy: TKnownHostCheckPolicy = (khcaContinue, khcaAsk, khcaAsk, khcaAsk);
 
+type
   TFilePermission = (fpOtherExec, fpOtherWrite, fpOtherRead,
                      fpGroupExec, fpGroupWrite, fpGroupRead,
                      fpUserExec, fpUserWrite, fpUserRead);
@@ -50,7 +53,6 @@ const
    FPDefault =  FPAllUser + [fpGroupRead, fpGroupExec, fpOtherRead, fpOtherExec];
 
 type
-
   ILibSsh2 = interface
     ['{EF87E36A-957B-49CA-9680-FEFBF1CE92B2}']
     function GetVersion: string;
@@ -73,7 +75,7 @@ type
     procedure SetKeybInteractiveCallback(Callback: TKeybInteractiveCallback);
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
-      const Policy: TKnownHostCheckPolicy; KnownHostsFile: string = '');
+      const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
     procedure Connect(IPVersion: TIPVersion = IPv4);
     procedure Disconnect;
     function AuthMethods(UserName: string): TAuthMethods;
@@ -259,7 +261,7 @@ type
     procedure SetKeybInteractiveCallback(Callback: TKeybInteractiveCallback);
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
-      const Policy: TKnownHostCheckPolicy; KnownHostsFile: string = '');
+      const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
     procedure Connect(IPVersion: TIPVersion = IPv4);
     procedure CheckKnownHost;
     function AuthMethods(UserName: string): TAuthMethods;
@@ -403,15 +405,12 @@ begin
 end;
 
 procedure TSshSession.ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
-  const Policy: TKnownHostCheckPolicy; KnownHostsFile: string);
+  const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string);
 begin
   FKnownHostCheckSettings.EnableCheck := EnableCheck;
   if KnownHostsFile <> '' then
     FKnownHostCheckSettings.KnownHostsFile :=  KnownHostsFile;
-  FKnownHostCheckSettings.Policy[khcsMatch] := Policy[khcsMatch];
-  FKnownHostCheckSettings.Policy[khcsMisMatch] := Policy[khcsMisMatch];
-  FKnownHostCheckSettings.Policy[khcsNotFound] := Policy[khcsNotFound];
-  FKnownHostCheckSettings.Policy[khcsFailure] := Policy[khcsFailure];
+  FKnownHostCheckSettings.Policy := Policy;
 end;
 
 procedure TSshSession.Connect(IPVersion: TIPVersion = IPv4);
@@ -458,10 +457,7 @@ constructor TSshSession.Create(Host: string; Port: Word);
 begin
   inherited Create;
   FKnownHostCheckSettings.EnableCheck := True;
-  FKnownHostCheckSettings.Policy[khcsMatch] := khcaContinue;
-  FKnownHostCheckSettings.Policy[khcsMisMatch] := khcaAsk;
-  FKnownHostCheckSettings.Policy[khcsNotFound] := khcaAsk;
-  FKnownHostCheckSettings.Policy[khcsFailure] := khcaAsk;
+  FKnownHostCheckSettings.Policy := DefKnownHostCheckPolicy;
   FKnownHostCheckSettings.KnownHostsFile := ExpandEnvStrings(
     IncludeTrailingPathDelimiter('%USERPROFILE%') + '.ssh\known_hosts');
   FWinSock := GetWinSock;
