@@ -28,7 +28,6 @@ procedure Main;
 Var
   Host: string;
   UserName: string;
-  Command: string;
   Session: ISshSession;
   Sftp: ISftpClient;
   RemotePath: string;
