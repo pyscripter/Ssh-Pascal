@@ -336,7 +336,8 @@ Var
     begin
       if libssh2_knownhost_addc(KnownHosts, M.AsAnsi(FHost, FCodePage).ToPointer, nil, FingerPrint,
         Keylen, nil, 0, LIBSSH2_KNOWNHOST_TYPE_PLAIN or LIBSSH2_KNOWNHOST_KEYENC_RAW
-        or LIBSSH2_KNOWNHOST_KEY_ECDSA_256, HostResult) = 0
+        //  LIBSSH2_HOSTKEY_TYPE_ -> LIBSSH2_KNOWNHOST_KEY_
+        or (Succ(typ) shl LIBSSH2_KNOWNHOST_KEY_SHIFT), HostResult) = 0
       then
         libssh2_knownhost_writefile(KnownHosts,
           M.AsAnsi(FKnownHostCheckSettings.KnownHostsFile, FCodePage).ToPointer,
