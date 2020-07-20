@@ -45,7 +45,7 @@ begin
   LocalPath := ParamStr(4);
 
   Session := CreateSession(Host, 22);
-  //Session.UseCompression := True;
+  Session.UseCompression := True;
   Session.SetKeybInteractiveCallback(KeybIntCallback);
 
   Session.Connect;
