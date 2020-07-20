@@ -16,12 +16,7 @@ Pascal Ssh library based on [libssh2](https://www.libssh2.org/). Libssh2 is a ma
 There are no components to install.  Just clone the repository and add the Source folder to your library path.
 
 ## Deployment
-The following dynamic libraries should be deployed in the same directory as the executable.
-- libssh2.dll
-- libcrypto-1_1.dll
-- libssl-1_1.dll
-
- The Bin directory contains Win32 and Win64 binaries.  Updated Windows binaries can be found at the [PHP repository](https://windows.php.net/downloads/php-sdk/deps/).
+The libssh2.dll dynamic library should be deployed in the same directory as the executable. The Bin directory contains Win32 and Win64 binaries. 
 
 ## Documentation
 Currently the best (only) way to learn how to use the library is to study the demos and the source code.
