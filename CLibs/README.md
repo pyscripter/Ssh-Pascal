@@ -3,6 +3,7 @@
 ### Requirements
 - [Git for Windows](https://git-scm.com/download/win) installed
 - [Visual Studio](https://visualstudio.microsoft.com/) installed. [Community edition](https://visualstudio.microsoft.com/vs/community/) will do.
+- Visual Studio includes [CMake](https://cmake.org/) but you need to make sure is accessible from the system path before executing the following steps.
 
 ### Steps
 - Run CloneLibs.cmd to clone zlib and libssh2
