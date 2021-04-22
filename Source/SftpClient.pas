@@ -403,13 +403,13 @@ end;
 function TSFtpClient.ExtractFilePath(const FileName: string): string;
 var
   I: Integer;
-  Delims: TSysCharSet;
+  Delims: String;
 begin
-  Delims := [FPathDelim];
+  Delims := FPathDelim;
   if FWindowsHost then
-    Delims := Delims +  [DriveDelim];
+    Delims := Delims +  DriveDelim;
 
-  I := FileName.LastDelimiter(Delims);
+  I := LastDelimiter(Delims, FileName);
   Result := Copy(FileName, 1, I + 1);
 end;
 
