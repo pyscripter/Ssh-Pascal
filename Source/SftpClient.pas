@@ -62,6 +62,8 @@ type
     function RemoveDir(const Dir: string): Boolean;
     function DirectoryExists(const Directory: string; FollowLink: Boolean = True): Boolean;
     function ExcludeTrailingPathDelimiter(const S: string): string;
+    function IncludeTrailingPathDelimiter(const S: string): string;
+    function ExtractFileName(const FileName: string): string;
     function DirContent(const Dir: string): TSftpItems;
     // Files
     function FileExists(const FileName: string; FollowLink: Boolean = True): Boolean;
@@ -73,13 +75,20 @@ type
     function CreateSymLink(const Link, Target: string): Boolean;
     //Send and Receive
     procedure Receive(const RemoteFile: string; Stream: TStream); overload;
-    procedure Receive(const RemoteFile, LocalFile: string); overload;
+    procedure Receive(const RemoteFile, LocalFile: string; Overwrite:Boolean = True); overload;
     procedure Send(Stream: TStream; const RemoteFile: string;
       Overwrite: Boolean = True; Permissions: TFilePermissions = FPDefault); overload;
     procedure Send(const LocalFile, RemoteFile: string;
       Overwrite: Boolean = True; Permissions: TFilePermissions = FPDefault); overload;
-
+    // Copy Files and Directories
+    // Source can be a file or a directory and may include a file mask
+    // Dest is either a file or a directory
+    procedure CopyToHost(const Source, Dest: string; Recursive: Boolean = True;
+      Overwrite: Boolean = True; Permissions: TFilePermissions = FPDefault); overload;
+    procedure CopyFromHost(const Source, Dest: string; Recursive: Boolean = True;
+      Overwrite: Boolean = True); overload;
     property WindowsHost: Boolean read GetWindowsHost;
+
     property PathDelimiter: AnsiChar read GetPathDelimiter;
     property CurrentDir: string read GetCurrentDir;
   end;
@@ -90,7 +99,10 @@ function CreateSftpClient(Session: ISshSession): ISftpClient;
 implementation
 Uses
   System.SysConst,
+  System.Types,
   System.DateUtils,
+  System.IOUtils,
+  System.Masks,
   System.Generics.Defaults;
 
 {$region Support stuff}
@@ -121,6 +133,8 @@ resourcestring
   Err_LIBSSH2_UNKNOWN = 'Unknown error';
   Err_NotAFile = '"%s" is not a file';
   Err_SessionNotAuth = 'The session is not connected and authorised';
+  Err_InvalideSource = 'The source of a copy operation is not valid';
+  Err_InvalideDest = 'The destination of a copy operation is not valid';
 
 function SftpErrorMsg(ErrNo: ULong): string;
 begin
@@ -245,6 +259,8 @@ type
     function RemoveDir(const Dir: string): Boolean;
     function DirectoryExists(const Directory: string; FollowLink: Boolean = True): Boolean;
     function ExcludeTrailingPathDelimiter(const S: string): string;
+    function IncludeTrailingPathDelimiter(const S: string): string;
+    function ExtractFileName(const FileName: string): string;
     function DirContent(const Dir: string): TSftpItems;
     // Files
     function FileExists(const FileName: string; FollowLink: Boolean = True): Boolean;
@@ -256,11 +272,18 @@ type
     function CreateSymLink(const Link, Target: string): Boolean;
     // Send and Receive
     procedure Receive(const RemoteFile: string; Stream: TStream); overload;
-    procedure Receive(const RemoteFile, LocalFile: string); overload;
+    procedure Receive(const RemoteFile, LocalFile: string; Overwrite: Boolean = True); overload;
     procedure Send(Stream: TStream; const RemoteFile: string;
       Overwrite: Boolean = True; Permissions: TFilePermissions = FPDefault); overload;
     procedure Send(const LocalFile, RemoteFile: string;
       Overwrite: Boolean = True; Permissions: TFilePermissions = FPDefault); overload;
+    // Copy Files and Directories
+    // Source can be a file or a directory and may include a file mask
+    // Dest is either a file or a directory
+    procedure CopyToHost(const Source, Dest: string; Recursive: Boolean = True;
+      Overwrite: Boolean = True; Permissions: TFilePermissions = FPDefault); overload;
+    procedure CopyFromHost(const Source, Dest: string; Recursive: Boolean = True;
+      Overwrite: Boolean = True); overload;
   public
     constructor Create(Session: ISshSession);
     destructor Destroy; override;
@@ -271,6 +294,122 @@ type
 procedure TSFtpClient.Cancel;
 begin
   FCancelled := True;
+end;
+
+procedure TSFtpClient.CopyFromHost(const Source, Dest: string; Recursive,
+  Overwrite: Boolean);
+Var
+  Mask: string;
+  FilePath: string;
+  IsFile: Boolean;
+  IsPath: Boolean;
+  HasMask: Boolean;
+  Items: TSftpItems;
+  Item: TSftpItem;
+begin
+  Mask := ExtractFileName(Source);
+  HasMask := Mask.IndexOfAny(['?','*']) >= 0;
+  if HasMask then
+  begin
+    IsFile := False;
+    FilePath := ExtractFilePath(Source);
+    IsPath := DirectoryExists(FilePath);
+  end
+  else
+  begin
+    IsFile := FileExists(FilePath, False);
+    if IsFile then
+      IsPath := False
+    else
+    begin
+      IsPath := DirectoryExists(Source, False);
+      FilePath := IncludeTrailingPathDelimiter(Source);
+    end;
+  end;
+  if not (IsFile or IsPath) then
+    raise ESftpErr.CreateRes(@Err_InvalideSource);
+
+  if IsFile then
+    Receive(Source, Dest, Overwrite)
+  else // IsPath
+  begin
+    // Dest needs to be a directory - Create if needed
+    if not System.SysUtils.ForceDirectories(Dest) then
+      raise ESftpErr.CreateRes(@Err_InvalideDest);
+    Items := DirContent(FilePath);
+    for Item in Items do
+    case Item.ItemType of
+      sitDirectory:
+        if Recursive and (Item.FileName <> '.') and (Item.FileName <> '..') then
+          CopyFromHost(FilePath + Item.FileName,
+            IncludeTrailingPathDelimiter(Dest) + Item.FileName,
+            True, Overwrite);
+      sitFile:
+        if not HasMask or MatchesMask(Item.FileName, Mask) then
+          Receive(FilePath + Item.FileName,
+            System.SysUtils.IncludeTrailingPathDelimiter(Dest) + Item.FileName,
+            Overwrite);
+    end;
+  end;
+end;
+
+procedure TSFtpClient.CopyToHost(const Source, Dest: string; Recursive,
+  Overwrite: Boolean; Permissions: TFilePermissions);
+Var
+  Mask: string;
+  FilePath: string;
+  IsFile: Boolean;
+  IsPath: Boolean;
+  HasMask: Boolean;
+  Files: TStringDynArray;
+  Dirs: TStringDynArray;
+  FName: string;
+  Dir: string;
+begin
+  Mask := System.SysUtils.ExtractFileName(Source);
+  HasMask := Mask.IndexOfAny(['?','*']) >= 0;
+  if HasMask then
+  begin
+    IsFile := False;
+    FilePath := System.SysUtils.ExtractFilePath(Source);
+    IsPath := System.SysUtils.DirectoryExists(FilePath, False);
+  end
+  else
+  begin
+    IsFile := System.SysUtils.FileExists(FilePath, False);
+    if IsFile then
+      IsPath := False
+    else
+    begin
+      IsPath := System.SysUtils.DirectoryExists(Source);
+      FilePath := System.SysUtils.IncludeTrailingPathDelimiter(Source);
+    end;
+  end;
+  if not (IsFile or IsPath) then
+    raise ESftpErr.CreateRes(@Err_InvalideSource);
+
+  if IsFile then
+    Send(Source, Dest, Overwrite, Permissions)
+  else // IsPath
+  begin
+    // Dest needs to be a directory - Create if needed
+    if not ForceDirectories(Dest) then
+      raise ESftpErr.CreateRes(@Err_InvalideDest);
+    Files := TDirectory.GetFiles(FilePath);
+    for FName in Files do
+    begin
+      if not HasMask or MatchesMask(System.SysUtils.ExtractFileName(FName), Mask) then
+        Send(FName, IncludeTrailingPathDelimiter(Dest) +
+          System.SysUtils.ExtractFileName(FName), Overwrite, Permissions)
+    end;
+    if Recursive then
+    begin
+      Dirs := TDirectory.GetDirectories(FilePath);
+      for Dir in Dirs do
+        CopyToHost(Dir, IncludeTrailingPathDelimiter(Dest) + System.SysUtils.ExtractFileName(Dir),
+          True, Overwrite, Permissions);
+    end;
+  end;
 end;
 
 constructor TSFtpClient.Create(Session: ISshSession);
@@ -400,6 +539,22 @@ begin
     Result := S;
 end;
 
+function TSFtpClient.ExtractFileName(const FileName: string): string;
+var
+  I: Integer;
+  Delims: TSysCharSet;
+begin
+  Delims := [FPathDelim];
+  if FWindowsHost then
+    Delims := Delims +  [DriveDelim];
+
+  I := FileName.LastDelimiter(Delims);
+  if I >= 0 then
+    Result := Copy(FileName, I + 2)
+  else
+    Result := FileName;
+end;
+
 function TSFtpClient.ExtractFilePath(const FileName: string): string;
 var
   I: Integer;
@@ -478,6 +633,13 @@ begin
   Result := FWindowsHost;
 end;
 
+function TSFtpClient.IncludeTrailingPathDelimiter(const S: string): string;
+begin
+  Result := S;
+  if Ord(High(Result)) <> Ord(FPathDelim) then
+    Result := Result + Char(Ord(FPathDelim));
+end;
+
 function TSFtpClient.CreateSymLink(const Link, Target: string): Boolean;
 Var
   M: TMarshaller;
@@ -554,11 +716,16 @@ begin
   Result := AnsiToUnicode(PAnsiChar(@Target), FSession.CodePage);
 end;
 
-procedure TSFtpClient.Receive(const RemoteFile, LocalFile: string);
+procedure TSFtpClient.Receive(const RemoteFile, LocalFile: string; Overwrite:Boolean);
 Var
   FileStream: TFileStream;
+   Mode: Word;
 begin
-  FileStream := TFileStream.Create(LocalFile, fmCreate or fmOpenWrite);
+  if Overwrite then
+    Mode := fmCreate or fmOpenWrite
+  else
+    Mode := fmCreate;
+  FileStream := TFileStream.Create(LocalFile, Mode);
   try
     Receive(RemoteFile, FileStream);
   finally

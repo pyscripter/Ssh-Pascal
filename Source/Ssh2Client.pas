@@ -11,10 +11,6 @@ unit Ssh2Client;
     Released under the MIT Licence
 }
 
-{ TODO : Sftp }
-{ TODO : Port Forwarding }
-
-
 interface
 uses
   WinApi.Windows,
@@ -41,7 +37,10 @@ type
   TKnownHostCheckState = (khcsMatch, khcsMisMatch, khcsNotFound, khcsFailure);
   TKnownHostCheckAction = (khcaContinue, khcaStop, khcaAsk);
   TKnownHostCheckPolicy = array [TKnownHostCheckState] of TKnownHostCheckAction;
+var
+  DefKnownHostCheckPolicy: TKnownHostCheckPolicy = (khcaContinue, khcaAsk, khcaAsk, khcaAsk);
 
+type
   TFilePermission = (fpOtherExec, fpOtherWrite, fpOtherRead,
                      fpGroupExec, fpGroupWrite, fpGroupRead,
                      fpUserExec, fpUserWrite, fpUserRead);
@@ -54,7 +53,6 @@ const
    FPDefault =  FPAllUser + [fpGroupRead, fpGroupExec, fpOtherRead, fpOtherExec];
 
 type
-
   ILibSsh2 = interface
     ['{EF87E36A-957B-49CA-9680-FEFBF1CE92B2}']
     function GetVersion: string;
@@ -77,7 +75,7 @@ type
     procedure SetKeybInteractiveCallback(Callback: TKeybInteractiveCallback);
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
-      const Policy: TKnownHostCheckPolicy; KnownHostsFile: string = '');
+      const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
     procedure Connect(IPVersion: TIPVersion = IPv4);
     procedure Disconnect;
     function AuthMethods(UserName: string): TAuthMethods;
@@ -89,7 +87,9 @@ type
     function UserAuthNone(const UserName: string): Boolean;
     function UserAuthPass(const UserName, Password: string): Boolean;
     function UserAuthInteractive(const UserName: string): Boolean;
+    // Uses TKeybInteractiveCallback (needs to be set) to get the passphrase
     function UserAuthKey(const UserName: string; PrivateKeyFile: string): Boolean; overload;
+    // PassPhrase can be nil
     function UserAuthKey(const UserName: string; PrivateKeyFile: string; PassPhrase: string): Boolean; overload;
     function UserAuthAgent(const UserName: string): Boolean;
     function GetUserName: string;
@@ -164,6 +164,8 @@ function AnsiToUnicode(P: PAnsiChar; CP: Word): string;
 Var
   S: RawByteString;
 begin
+  if P = nil then Exit('');
+
   S:= P;
   SetCodePage(S, CP, False);
   Result := string(S);
@@ -261,7 +263,7 @@ type
     procedure SetKeybInteractiveCallback(Callback: TKeybInteractiveCallback);
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
-      const Policy: TKnownHostCheckPolicy; KnownHostsFile: string = '');
+      const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
     procedure Connect(IPVersion: TIPVersion = IPv4);
     procedure CheckKnownHost;
     function AuthMethods(UserName: string): TAuthMethods;
@@ -334,7 +336,8 @@ Var
     begin
       if libssh2_knownhost_addc(KnownHosts, M.AsAnsi(FHost, FCodePage).ToPointer, nil, FingerPrint,
         Keylen, nil, 0, LIBSSH2_KNOWNHOST_TYPE_PLAIN or LIBSSH2_KNOWNHOST_KEYENC_RAW
-        or LIBSSH2_KNOWNHOST_KEY_ECDSA_256, HostResult) = 0
+        //  LIBSSH2_HOSTKEY_TYPE_ -> LIBSSH2_KNOWNHOST_KEY_
+        or (Succ(typ) shl LIBSSH2_KNOWNHOST_KEY_SHIFT), HostResult) = 0
       then
         libssh2_knownhost_writefile(KnownHosts,
           M.AsAnsi(FKnownHostCheckSettings.KnownHostsFile, FCodePage).ToPointer,
@@ -405,15 +408,12 @@ begin
 end;
 
 procedure TSshSession.ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
-  const Policy: TKnownHostCheckPolicy; KnownHostsFile: string);
+  const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string);
 begin
   FKnownHostCheckSettings.EnableCheck := EnableCheck;
   if KnownHostsFile <> '' then
     FKnownHostCheckSettings.KnownHostsFile :=  KnownHostsFile;
-  FKnownHostCheckSettings.Policy[khcsMatch] := Policy[khcsMatch];
-  FKnownHostCheckSettings.Policy[khcsMisMatch] := Policy[khcsMisMatch];
-  FKnownHostCheckSettings.Policy[khcsNotFound] := Policy[khcsNotFound];
-  FKnownHostCheckSettings.Policy[khcsFailure] := Policy[khcsFailure];
+  FKnownHostCheckSettings.Policy := Policy;
 end;
 
 procedure TSshSession.Connect(IPVersion: TIPVersion = IPv4);
@@ -460,10 +460,7 @@ constructor TSshSession.Create(Host: string; Port: Word);
 begin
   inherited Create;
   FKnownHostCheckSettings.EnableCheck := True;
-  FKnownHostCheckSettings.Policy[khcsMatch] := khcaContinue;
-  FKnownHostCheckSettings.Policy[khcsMisMatch] := khcaAsk;
-  FKnownHostCheckSettings.Policy[khcsNotFound] := khcaAsk;
-  FKnownHostCheckSettings.Policy[khcsFailure] := khcaAsk;
+  FKnownHostCheckSettings.Policy := DefKnownHostCheckPolicy;
   FKnownHostCheckSettings.KnownHostsFile := ExpandEnvStrings(
     IncludeTrailingPathDelimiter('%USERPROFILE%') + '.ssh\known_hosts');
   FWinSock := GetWinSock;
@@ -488,7 +485,7 @@ var
 begin
   if FAddr <> nil then
   begin
-    libssh2_session_disconnect(FAddr, M.AsAnsi(Msg_Disconnect).ToPointer);
+    libssh2_session_disconnect(FAddr, M.AsAnsi(Msg_Disconnect, FCodePage).ToPointer);
     libssh2_session_free(FAddr);
   end;
   FAddr := nil;
@@ -998,30 +995,45 @@ Var
   MemoryStream : TMemoryStream;
   BytesRead: ssize_t;
 begin
+  Result := '';
+  if Cancelled^ then Exit;
   MemoryStream := TMemoryStream.Create;
   try
     Repeat
       BytesRead :=  libssh2_channel_read_ex(Channel, StreamId, Buf, BufLen);
       CheckLibSsh2Result(BytesRead, Session, 'libssh2_channel_read_ex');
-      MemoryStream.Write(Buf^, BytesRead);
+      if BytesRead > 0 then
+        MemoryStream.Write(Buf^, BytesRead);
     Until (BytesRead = 0) or Cancelled^;
-    Result := AnsiToUnicode(PAnsiChar(MemoryStream.Memory), Session.CodePage);
+
+    // Keep whatever output there is by null-terminating the stream
+    if Cancelled^ then
+    begin
+      Buf^ := #0;
+      MemoryStream.Write(Buf^, 1);
+    end;
+
+    if MemoryStream.Size > 0 then
+      Result := AnsiToUnicode(PAnsiChar(MemoryStream.Memory), Session.CodePage);
   finally
     MemoryStream.Free;
   end;
 end;
 
+
 procedure TSshExec.Exec(const Command: string; var Output, ErrOutput: string;
   var ExitCode: Integer);
-{  TODO: Consider a non blocking implementation (easier to cancel) }
 var
   Channel: PLIBSSH2_CHANNEL;
   M: TMarshaller;
   Buffer: TBytes;
+  TimeVal: TTimeVal;
+  ReadFds: TFdSet;
+  ReturnCode: integer;
 begin
   if FSession.SessionState <>  session_Authorized then
     raise ESshError.CreateRes(@Err_SessionAuth);
-  //
+  
   FCancelled := False;
   Channel := libssh2_channel_open_session(FSession.Addr);
   if Channel = nil then
@@ -1033,16 +1045,39 @@ begin
       M.AsAnsi(Command, FSession.CodePage).ToPointer),
       FSession, 'libssh2_channel_exec');
 
-    SetLength(Buffer, FBufferSize);
-    Output := ReadStringFromChannel(FSession, Channel, PAnsiChar(Buffer),
-      FBufferSize, 0, @FCancelled);
-    ErrOutput := ReadStringFromChannel(FSession, Channel, PAnsiChar(Buffer),
-      FBufferSize, SSH_EXTENDED_DATA_STDERR, @FCancelled);
+    // Wait until there is something to read on the Channel
+    // Stop waiting if cancelled
+    TimeVal.tv_sec := 1;  // check for cancel every one second
+    TimeVal.tv_usec := 0;
+    Repeat
+      FD_ZERO(ReadFds);
+      _FD_SET(FSession.Socket, ReadFds);
+      ReturnCode := select(0, @ReadFds, nil, nil, @TimeVal);
+      if ReturnCode < 0 then CheckSocketResult(WSAGetLastError, 'select');
+    Until (ReturnCode > 0) or FCancelled;
 
+    if not FCancelled then
+    begin
+      SetLength(Buffer, FBufferSize);
+      Output := ReadStringFromChannel(FSession, Channel, PAnsiChar(Buffer),
+        FBufferSize, 0, @FCancelled);
+      ErrOutput := ReadStringFromChannel(FSession, Channel, PAnsiChar(Buffer),
+        FBufferSize, SSH_EXTENDED_DATA_STDERR, @FCancelled);
+    end;
+
+    if FCancelled then
+      // Do not wait for response
+      // Note that the remote process may still be running after we exit
+      FSession.Blocking := False;
+    // libssh2_channel_close sends SSH_MSG_CLOSE to the host
     libssh2_channel_close(Channel);
-    Exitcode := libssh2_channel_get_exit_status(Channel);
+    if FCancelled then
+      ExitCode := 130 // ^C on Linux
+    else
+      Exitcode := libssh2_channel_get_exit_status(Channel);
   finally
     libssh2_channel_free(Channel);
+    FSession.Blocking := True;
   end;
 end;
 

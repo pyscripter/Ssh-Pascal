@@ -78,6 +78,9 @@ end;
 
 procedure TSshTunnel.ForwardLocalPort(const LocalPort: Word;
   const RemoteHost: string; const RemotePort: Word);
+{
+   Note that currently the procedure handles only the first connection that come in
+}
 Var
   ListenSock: TSocket;
   ForwardSock: TSocket;
@@ -124,7 +127,7 @@ begin
     ChannelSock := FSession.Socket;
 
     // Must use non-blocking IO hereafter due to the current libssh2 API
-    libssh2_session_set_blocking(FSession.Addr, 0);
+    FSession.Blocking := False;
 
     // Now transfer date
     // ForwardSocket -> Channel
