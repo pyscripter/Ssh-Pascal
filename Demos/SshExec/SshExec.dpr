@@ -5,7 +5,6 @@
 uses
   Winapi.Winsock2,
   System.SysUtils,
-  System.NetEncoding,
   System.Classes,
   libssh2 in '..\..\Source\libssh2.pas',
   SocketUtils in '..\..\Source\SocketUtils.pas',
