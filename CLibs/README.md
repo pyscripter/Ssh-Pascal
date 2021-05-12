@@ -7,5 +7,5 @@
 
 ### Steps
 - Run CloneLibs.cmd to clone zlib and libssh2
-- Run BuildWin64Lib to build libssh2.dll 64 bits. It will build the dll with the WinCng (bcrypt.dll part of the Windows system) backend and copyt it tho the Bin\Win64 directory
-- Run BuildWin32Lib to build libssh2.dll 32 bits. It will build the dll with the WinCng (bcrypt.dll part of the Windows system) backend and copyt it tho the Bin\Win32 directory
+- Run BuildWin64Lib to build libssh2.dll 64 bits. It will build the dll with the WinCng (bcrypt.dll part of the Windows system) backend and copy it to the Bin\Win64 directory
+- Run BuildWin32Lib to build libssh2.dll 32 bits. It will build the dll with the WinCng (bcrypt.dll part of the Windows system) backend and copy it to the Bin\Win32 directory

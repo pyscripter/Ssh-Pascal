@@ -26,7 +26,6 @@ Currently only Delphi (versions with generics) and Windows 32-bit and 64-bit are
 libssh2 is available on Linux, iOS, OSX, and other platforms.  So the library could be extended to provide support for such platforms.  Pull requests to provide compatibility with other platforms and/or FPC would be welcome.
 
 ## Limitations
-- Agent authorization works only with Putty's pagent.  The OpenSSH ssh-agent is not supported.
 - scp does not work with Windows hosts (Sftp does though).
 - keyboard-interactive authorization does not work with Windows hosts (it reverts to password authorization).
 
