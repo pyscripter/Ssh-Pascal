@@ -93,6 +93,9 @@ type
     function UserAuthKey(const UserName: string; PrivateKeyFile: string; PassPhrase: string): Boolean; overload;
     function UserAuthAgent(const UserName: string): Boolean;
     function GetUserName: string;
+    // Set timeout for blocking functions
+    // - aTimeoutInMs: Timeout in milliseconds.
+    procedure SetTimeout(aTimeoutInMs: LongInt);
     property Addr: PLIBSSH2_SESSION read GetAddr;
     property SessionState: TSessionState read GetSessionState;
     property Blocking: Boolean read GetBlocking write SetBlocking;
@@ -141,6 +144,10 @@ function CreateSshExec(Session: ISshSession): ISshExec;
 // support routines
 function AnsiToUnicode(P: PAnsiChar; CP: Word): string;
 procedure CheckLibSsh2Result(ResultCode: Integer; Session: ISshSession; const Op: string);
+
+var
+  // Default timeout in milliseconds for block functions
+  gDefaultSshTimeout: Integer = 30000;
 
 implementation
 
@@ -276,6 +283,9 @@ type
     function UserAuthAgent(const UserName: string): Boolean;
     function GetUserName: string;
     procedure Disconnect;
+    // Set timeout for blocking functions
+    // - aTimeoutInMs: Timeout in milliseconds.
+    procedure SetTimeout(aTimeoutInMs: LongInt);
   public
     constructor Create(Host: string; Port: Word);
     destructor Destroy; override;
@@ -437,6 +447,7 @@ begin
     Self as TSshSession, 'libssh2_session_handshake');
   SetBlocking(True);  // blocking by default
   FState := session_Connected;
+  SetTimeout(gDefaultSshTimeout);
 
   if FKnownHostCheckSettings.EnableCheck then
     try
@@ -800,6 +811,12 @@ begin
     FUserName := UserName;
   end;
 end;
+
+procedure TSshSession.SetTimeout(aTimeoutInMs: LongInt);
+begin
+  libssh2_session_set_timeout(Faddr, aTimeoutInMs);
+end;
+
 {$endregion}
 
 {$region 'TScp'}

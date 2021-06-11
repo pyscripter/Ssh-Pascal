@@ -548,6 +548,15 @@ function libssh2_poll(var fds: LIBSSH2_POLLFD;
                       nfds: UInt;
                       timeout: LongInt): Integer; cdecl;
 
+
+// Edwin Yip start
+// libssh2_session_set_timeout - set timeout for blocking functions
+// -  Set the timeout in milliseconds for how long a blocking the libssh2 function calls may wait until they
+//    consider the situation an error and return LIBSSH2_ERROR_TIMEOUT.
+// -  By default or if you set the timeout to zero, libssh2 has no timeout for blocking functions.
+procedure libssh2_session_set_timeout (session: PLIBSSH2_SESSION; timeout: LongInt); cdecl;
+// Edwin Yip end
+
 const
 {+// Channel API*/ }
   LIBSSH2_CHANNEL_WINDOW_DEFAULT = 65536;
@@ -1263,6 +1272,7 @@ procedure libssh2_keepalive_config; external libssh2_name delayed;
 function libssh2_keepalive_send; external libssh2_name delayed;
 //function libssh2_trace; external libssh2_name delayed;
 function libssh2_trace_sethandler; external libssh2_name delayed;
+procedure libssh2_session_set_timeout; external libssh2_name delayed;
 
 function libssh2_session_init: PLIBSSH2_SESSION;
 begin
