@@ -142,7 +142,8 @@ function CreateScp(Session: ISshSession): IScp;
 function CreateSshExec(Session: ISshSession): ISshExec;
 
 // support routines
-function AnsiToUnicode(P: PAnsiChar; CP: Word): string;
+function AnsiToUnicode(P: PAnsiChar; CP: Word): string; overload;
+function AnsiToUnicode(P: PAnsiChar; Len: Int64; CP: Word): string; overload;
 procedure CheckLibSsh2Result(ResultCode: Integer; Session: ISshSession; const Op: string);
 
 var
@@ -178,6 +179,17 @@ begin
   Result := string(S);
 end;
 
+function AnsiToUnicode(P: PAnsiChar; Len: Int64; CP: Word): string;
+Var
+  S: RawByteString;
+begin
+  if P = nil then Exit('');
+
+  SetString(S, P, Len);
+  SetCodePage(S, CP, False);
+  Result := string(S);
+end;
+
 procedure CheckLibSsh2Result(ResultCode: Integer; Session: ISshSession; const Op: string);
 var
   I: Integer;
@@ -191,7 +203,7 @@ begin
       // LIBSSH2_ERROR_EAGAIN indicates no result in non-blocking mode
       if ResultCode = LIBSSH2_ERROR_EAGAIN then Exit;
       libssh2_session_last_error(Session.Addr, P, I, 0);
-      ErrMsg := AnsiToUnicode(P, Session.CodePage);
+      ErrMsg := AnsiToUnicode(P, I, Session.CodePage);
     end;
     raise ESshError.CreateResFmt(@Err_LibSsh2,
       [ErrMsg, ResultCode, Op])
@@ -1023,20 +1035,13 @@ begin
         MemoryStream.Write(Buf^, BytesRead);
     Until (BytesRead = 0) or Cancelled^;
 
-    // Keep whatever output there is by null-terminating the stream
-    if Cancelled^ then
-    begin
-      Buf^ := #0;
-      MemoryStream.Write(Buf^, 1);
-    end;
-
     if MemoryStream.Size > 0 then
-      Result := AnsiToUnicode(PAnsiChar(MemoryStream.Memory), Session.CodePage);
+      Result := AnsiToUnicode(PAnsiChar(MemoryStream.Memory),
+        MemoryStream.Size, Session.CodePage);
   finally
     MemoryStream.Free;
   end;
 end;
-
 
 procedure TSshExec.Exec(const Command: string; var Output, ErrOutput: string;
   var ExitCode: Integer);

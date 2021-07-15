@@ -492,7 +492,6 @@ begin
     FSession.CodePage).ToPointer);
   if DirHandle = nil then
     RaiseLastSFTPError('libssh2_sftp_opendir');
-
   List := TList<TSFTPItem>.Create(TDelegatedComparer<TSFTPItem>.Create(
     function(const Left, Right: TSFTPItem): Integer
     begin
@@ -544,7 +543,7 @@ var
   I: Integer;
   Delims: string;
 begin
-  Delims := FPathDelim;
+  Delims := string(FPathDelim);
   if FWindowsHost then
     Delims := Delims +  DriveDelim;
 
@@ -560,7 +559,7 @@ var
   I: Integer;
   Delims: String;
 begin
-  Delims := FPathDelim;
+  Delims := string(FPathDelim);
   if FWindowsHost then
     Delims := Delims +  DriveDelim;
 
@@ -606,7 +605,6 @@ var
   Buf: PAnsiChar;
 begin
   Result := '';
-
   DirHandle := libssh2_sftp_opendir(FSFtp, '.');
   if DirHandle <> nil then
   begin
