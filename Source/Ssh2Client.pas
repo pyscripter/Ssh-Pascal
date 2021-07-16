@@ -932,8 +932,8 @@ begin
   FCancelled := False;
   Channel := libssh2_scp_send64(FSession.Addr,
     M.AsAnsi(RemoteFile, FSession.CodePage).ToPointer,
-    Integer(Word(Permissions)), Stream.Size, IfThen(MTime = 0, DateTimeToUnix(MTime)),
-    IfThen(ATime = 0, 0, DateTimeToUnix(ATime)));
+    Integer(Word(Permissions)), Stream.Size, IfThen(MTime = 0, 0,
+    DateTimeToUnix(MTime)), IfThen(ATime = 0, 0, DateTimeToUnix(ATime)));
   if Channel = nil then
     CheckLibSsh2Result(libssh2_session_last_errno(FSession.Addr), FSession, 'libssh2_scp_send64');
 
