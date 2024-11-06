@@ -101,6 +101,7 @@ begin
   Channel := nil;
   TimeVal.tv_sec := 1;  // check for cancel every one second
   TimeVal.tv_usec := 0;
+  SocketOption := 1; // Initialize SocketOption
 
   ListenSock := GetWinSock.CreateSocketAndListen('localhost', LocalPort);
   setsockopt(ListenSock, SOL_SOCKET, SO_REUSEADDR, @SocketOption, sizeof(SocketOption));
@@ -129,7 +130,7 @@ begin
     // Must use non-blocking IO hereafter due to the current libssh2 API
     FSession.Blocking := False;
 
-    // Now transfer date
+    // Now transfer data
     // ForwardSocket -> Channel
     // Channel -> ForwardSocket
 
@@ -155,7 +156,9 @@ begin
         While (Total < Read) do
         begin
           Written := libssh2_channel_write(Channel, PAnsiChar(Buf) + Total, Read - Total);
-          // Takes care of LIBSSH2_ERROR_EAGAIN
+          // Handle EAGAIN
+          if Written = LIBSSH2_ERROR_EAGAIN then          
+            Continue; 
           CheckLibSsh2Result(Written, FSession, 'libssh2_channel_write');
           Inc(Total, Written);
         end;
@@ -163,7 +166,7 @@ begin
       if FD_ISSET(ChannelSock, ReadFds) then begin
         Read := libssh2_channel_read(channel, PAnsiChar(Buf), FBufferSize);
         if Read = LIBSSH2_ERROR_EAGAIN then
-          // Go to Wait state again
+          // Handle EAGAIN: Go to Wait state 
           Continue;
         CheckLibSsh2Result(Read, FSession, 'libssh2_channel_read');
         Total := 0;
