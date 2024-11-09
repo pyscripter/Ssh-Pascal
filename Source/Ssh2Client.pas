@@ -26,6 +26,8 @@ type
   // If Echo is False the response should be masked
   TKeybInteractiveCallback = function(const AuthName, AuthInstruction, Prompt: string;
     Echo: Boolean): string;
+  TKeybInteractiveCallbackMethod = function(const AuthName, AuthInstruction, Prompt: string;
+    Echo: Boolean): string of object;
   TTransferProgressCallback = procedure(const AFileName: string; ATransfered, ATotal: UInt64);
 
   TAuthMethod = (amInteractive, amPassword, amKey, amHostBased);
@@ -73,6 +75,7 @@ type
     function GetCodePage: Word;
     procedure SetCodePage(const CP: Word);
     procedure SetKeybInteractiveCallback(Callback: TKeybInteractiveCallback);
+    procedure SetKeybInteractiveCallbackMethod(Callback: TKeybInteractiveCallbackMethod);
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
       const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
@@ -267,7 +270,10 @@ type
     FAuthMethods: TAuthMethods;
     FAuthMethodsCached: Boolean;
     FKnownHostCheckSettings: TKnownHostCheckSettings;
-    FKeybIntEvent: TKeybInteractiveCallback;
+    FKeybIntEventFunction: TKeybInteractiveCallback;
+    FKeybIntEventMethod: TKeybInteractiveCallbackMethod;
+    function HasKeybIntEvent: boolean;
+    function doKeybInt(const AuthName, AuthInstruction, Prompt: string; Echo: Boolean): string;
     function GetAddr: PLIBSSH2_SESSION;
     function GetSocket: TSocket;
     function GetSessionState: TSessionState;
@@ -280,6 +286,7 @@ type
     function GetCodePage: Word;
     procedure SetCodePage(const CP: Word);
     procedure SetKeybInteractiveCallback(Callback: TKeybInteractiveCallback);
+    procedure SetKeybInteractiveCallbackMethod(Callback: TKeybInteractiveCallbackMethod);
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
       const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
@@ -325,6 +332,16 @@ end;
 
 { TSshSession }
 
+function TSshSession.doKeybInt(const AuthName, AuthInstruction, Prompt: string; Echo: Boolean): string;
+begin
+  if Assigned(FKeybIntEventFunction) then
+    Result := FKeybIntEventFunction(AuthName, AuthInstruction, Prompt, Echo)
+  else if Assigned(FKeybIntEventMethod) then
+    Result := FKeybIntEventMethod(AuthName, AuthInstruction, Prompt, Echo)
+  else
+    raise ESshError.Create('Neither FKeybIntEventFunction nor FKeybIntEventMethod is assigned');
+end;
+
 procedure TSshSession.CheckKnownHost;
 Var
   KnownHosts: PLIBSSH2_KNOWNHOSTS;
@@ -343,12 +360,11 @@ Var
     Action := FKnownHostCheckSettings.Policy[State];
     if (Action = khcaAsk) then
     begin
-      if not Assigned(FKeybIntEvent) then
+      if not HasKeybIntEvent then begin
         Action := khcaStop
-      else begin
-        if FKeybIntEvent('', Format(Err_SessionUnKnownHost, [FHost]),
-          UnKnownHostPrompt, True) = 'yes'
-        then
+      end else begin
+        if doKeybInt('', Format(Err_SessionUnKnownHost, [FHost]),
+          UnKnownHostPrompt, True) = 'yes' then
           Action := khcaContinue
         else
           Action := khcaStop;
@@ -574,6 +590,11 @@ begin
   Result := Pos('Windows', GetHostBanner) > 0;
 end;
 
+function TSshSession.HasKeybIntEvent: boolean;
+begin
+  Result := Assigned(FKeybIntEventFunction) or Assigned(FKeybIntEventMethod);
+end;
+
 procedure TSshSession.SetBlocking(Block: Boolean);
 begin
   libssh2_session_set_blocking(Faddr, IfThen(Block, 1, 0))
@@ -586,7 +607,12 @@ end;
 
 procedure TSshSession.SetKeybInteractiveCallback(Callback: TKeybInteractiveCallback);
 begin
-  FKeybIntEvent := Callback;
+  FKeybIntEventFunction := Callback;
+end;
+
+procedure TSshSession.SetKeybInteractiveCallbackMethod(Callback: TKeybInteractiveCallbackMethod);
+begin
+  FKeybIntEventMethod := Callback;
 end;
 
 procedure TSshSession.SetUseCompression(Compress: Boolean);
@@ -634,7 +660,7 @@ var
 begin
   if _abstract = nil then Exit;
   Session := TSshSession(_abstract^);
-  if not Assigned(Session.FKeybIntEvent) then Exit;
+  if not Session.HasKeybIntEvent then Exit;
 
   SetString(SName, Name, name_len);
   SetCodePage(SName, Session.FCodePage, False);
@@ -645,7 +671,7 @@ begin
   begin
     Echo := prompts[PromptNo].Echo <> 0;
     SetString(SPrompt, prompts[PromptNo].text, prompts[PromptNo].length);
-    Response :=Session.FKeybIntEvent(
+    Response :=Session.doKeybInt(
       string(SName), string(SInstruction), string(SPrompt), Echo);
     if Response <> '' then
     begin
@@ -751,7 +777,7 @@ Var
   Methods: TAuthMethods;
 begin
   if FState = session_Authorized then Exit(True);
-  if (FState <> session_Connected) or not Assigned(FKeybIntEvent) then
+  if (FState <> session_Connected) or not HasKeybIntEvent then
     Exit(False);
 
   Methods := AuthMethods(UserName);
@@ -761,7 +787,7 @@ begin
          UName.AsAnsi(UserName, FCodePage).ToPointer,
          KbdInteractiveCallback) = 0
   else if amPassword in Methods then
-    Result := UserAuthPass(UserName, FKeybIntEvent('', '', Msg_Password, False))
+    Result := UserAuthPass(UserName, doKeybInt('', '', Msg_Password, False))
   else
     Result := False;
   if Result then
@@ -798,10 +824,10 @@ function TSshSession.UserAuthKey(const UserName: string;
   PrivateKeyFile: string): Boolean;
 begin
   if FState = session_Authorized then Exit(True);
-  if not Assigned(FKeybIntEvent) or not (amKey in AuthMethods(UserName)) then Exit(False);
+  if not HasKeybIntEvent or not (amKey in AuthMethods(UserName)) then Exit(False);
 
   Result := UserAuthKey(UserName, PrivateKeyFile,
-      FKeybIntEvent('', Format(Msg_PrivateKeyInstruction, [PrivateKeyFile]),
+      doKeybInt('', Format(Msg_PrivateKeyInstruction, [PrivateKeyFile]),
       Msg_Password, False));
 end;
 
