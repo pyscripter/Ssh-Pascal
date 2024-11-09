@@ -35,7 +35,7 @@ Var
   SshTunnel: ISshTunnel;
   Thread: TThread;
 begin
-   if ParamCount <> 2 then begin
+  if ParamCount <> 2 then begin
     WriteLn('Usage: LocalForward Host, UserName');
     Exit;
   end;
@@ -72,7 +72,7 @@ begin
     Thread.WaitFor;
     Thread.Free;
   end;
-  Writeln('All done!');
+  WriteLn('All done!');
 end;
 
 begin
@@ -81,7 +81,7 @@ begin
     Main;
   except
     on E: Exception do
-      Writeln(E.ClassName, ': ', E.Message);
+      WriteLn(E.ClassName, ': ', E.Message);
   end;
   ReadLn;
 end.
