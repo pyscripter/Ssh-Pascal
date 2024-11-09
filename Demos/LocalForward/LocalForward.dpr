@@ -1,7 +1,7 @@
 ﻿program LocalForward;
 {
   Run and while the project is running open a browser at http://localhost:12345/
-  You should see http://git.php.net/
+  You should see http://detectportal.firefox.com/success.txt
 }
 
 {$APPTYPE CONSOLE}
@@ -35,7 +35,7 @@ Var
   SshTunnel: ISshTunnel;
   Thread: TThread;
 begin
-  if ParamCount <> 2 then begin
+   if ParamCount <> 2 then begin
     WriteLn('Usage: LocalForward Host, UserName');
     Exit;
   end;
@@ -61,7 +61,7 @@ begin
   Thread := TThread.CreateAnonymousThread(
     procedure
     begin
-        SshTunnel.ForwardLocalPort(12345, 'git.php.net', 80);
+        SshTunnel.ForwardLocalPort(12345, 'detectportal.firefox.com', 80);
     end);
   Thread.FreeOnTerminate := False;
   Thread.Start;
@@ -72,7 +72,7 @@ begin
     Thread.WaitFor;
     Thread.Free;
   end;
-  WriteLn('All done!');
+  Writeln('All done!');
 end;
 
 begin
@@ -81,7 +81,7 @@ begin
     Main;
   except
     on E: Exception do
-      WriteLn(E.ClassName, ': ', E.Message);
+      Writeln(E.ClassName, ': ', E.Message);
   end;
   ReadLn;
 end.
