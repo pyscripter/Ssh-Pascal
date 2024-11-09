@@ -62,12 +62,16 @@ begin
   SshExec := CreateSshExec(Session);
   SshExec.Exec(Command, Output, ErrOutput, ExitCode);
   WriteLn('Command:', Command);
-  WriteLn('Output:');
-  if Output <> '' then WriteLn(Output);
-  WriteLn('Error Output:');
-  if ErrOutput <> '' then WriteLn(ErrOutput);
+  if Output <> '' then begin
+    WriteLn('Output:');
+    WriteLn(Output);
+  end;
+  if ErrOutput <> '' then begin
+    WriteLn('Error Output:');
+    WriteLn(ErrOutput);
+  end;
   WriteLn('Exit Code:', ExitCode.ToString);
-  Writeln('All done!');
+  WriteLn('All done!');
 end;
 
 begin
@@ -76,7 +80,7 @@ begin
     Main;
   except
     on E: Exception do
-      Writeln(E.ClassName, ': ', E.Message);
+      WriteLn(E.ClassName, ': ', E.Message);
   end;
   ReadLn;
 end.
