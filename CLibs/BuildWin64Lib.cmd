@@ -1,5 +1,4 @@
 Set CurrentDIR=%CD%
-
 echo -------------  Building zlib  ---------------------
 pushd zlib
 git clean -d -f -x
