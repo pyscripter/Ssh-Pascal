@@ -123,8 +123,12 @@ begin
       if ForwardSock = INVALID_SOCKET then
         CheckSocketResult(WSAGetLastError, 'accept');
 
-      ServeTunnelConnection(Channel, ForwardSock, TimeVal);
-    Until FCancelled;
+      try
+        ServeTunnelConnection(Channel, ForwardSock, TimeVal);
+      except on E: Exception do
+        OutputDebugString(PChar(E.Message));
+      end;
+  Until FCancelled;
   finally
     if Channel <> nil then libssh2_channel_free(Channel);
     if ListenSock <> INVALID_SOCKET then closesocket(ListenSock);
