@@ -160,25 +160,25 @@ var
 begin
   ChannelSock := FSession.Socket;
 
-  FSessionLock.Enter;
   try
-    FSession.Blocking := True;
-    Channel := libssh2_channel_direct_tcpip_ex(FSession.Addr,
-      M.AsAnsi(RemoteHost, FSession.CodePage).ToPointer,
-      RemotePort, '127.0.0.1', LocalPort);
-    if Channel = nil then
-      CheckLibSsh2Result(libssh2_session_last_errno(FSession.Addr),
-        FSession, 'libssh2_channel_direct_tcpip_ex');
-  finally
-    // Must use non-blocking IO hereafter due to the current libssh2 API
-    FSession.Blocking := False;
-    FSessionLock.Leave;
-  end;
+    FSessionLock.Enter;
+    try
+      FSession.Blocking := True;
+      Channel := libssh2_channel_direct_tcpip_ex(FSession.Addr,
+        M.AsAnsi(RemoteHost, FSession.CodePage).ToPointer,
+        RemotePort, '127.0.0.1', LocalPort);
+      if Channel = nil then
+        CheckLibSsh2Result(libssh2_session_last_errno(FSession.Addr),
+          FSession, 'libssh2_channel_direct_tcpip_ex');
+    finally
+      // Must use non-blocking IO hereafter due to the current libssh2 API
+      FSession.Blocking := False;
+      FSessionLock.Leave;
+    end;
 
-  // Now transfer data
-  // ForwardSocket -> Channel
-  // Channel -> ForwardSocket
-  try
+    // Now transfer data
+    // ForwardSocket -> Channel
+    // Channel -> ForwardSocket
     SetLength(Buf, FBufferSize);
     while not FCancelled do
     begin
