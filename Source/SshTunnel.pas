@@ -124,7 +124,14 @@ begin
 
       ForwardSock := accept(listensock, nil, nil);
       if ForwardSock = INVALID_SOCKET then
-        CheckSocketResult(WSAGetLastError, 'accept');
+      begin
+        try
+          CheckSocketResult(WSAGetLastError, 'accept');
+        except on E: Exception do
+          OutputDebugString(PChar(E.Message));
+        end;
+        Continue;
+      end;
 
       TThread.CreateAnonymousThread(procedure
       begin
@@ -159,6 +166,7 @@ var
   M: TMarshaller;
 begin
   ChannelSock := FSession.Socket;
+  Channel := nil;
 
   try
     FSessionLock.Enter;
