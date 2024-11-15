@@ -91,9 +91,9 @@ type
     function UserAuthPass(const UserName, Password: string): Boolean;
     function UserAuthInteractive(const UserName: string): Boolean;
     // Uses TKeybInteractiveCallback (needs to be set) to get the passphrase
-    function UserAuthKey(const UserName: string; PrivateKeyFile: string): Boolean; overload;
-    // PassPhrase can be nil
-    function UserAuthKey(const UserName: string; PrivateKeyFile: string; PassPhrase: string): Boolean; overload;
+    function UserAuthKey(const UserName, PublicKeyFile, PrivateKeyFile: string): Boolean; overload;
+    // PassPhrase can be ''
+    function UserAuthKey(const UserName, PublicKeyFile, PrivateKeyFile, PassPhrase: string): Boolean; overload;
     function UserAuthAgent(const UserName: string): Boolean;
     function GetUserName: string;
     // Set timeout for blocking functions
@@ -297,8 +297,8 @@ type
     function UserAuthNone(const UserName: string): Boolean;
     function UserAuthPass(const UserName, Password: string): Boolean;
     function UserAuthInteractive(const UserName: string): Boolean;
-    function UserAuthKey(const UserName: string; PrivateKeyFile: string): Boolean; overload;
-    function UserAuthKey(const UserName: string; PrivateKeyFile: string; PassPhrase: string): Boolean; overload;
+    function UserAuthKey(const UserName, PublicKeyFile, PrivateKeyFile: string): Boolean; overload;
+    function UserAuthKey(const UserName, PublicKeyFile, PrivateKeyFile, PassPhrase: string): Boolean; overload;
     function UserAuthAgent(const UserName: string): Boolean;
     function GetUserName: string;
     procedure Disconnect;
@@ -797,7 +797,7 @@ begin
   end;
 end;
 
-function TSshSession.UserAuthKey(const UserName: string; PrivateKeyFile,
+function TSshSession.UserAuthKey(const UserName, PublicKeyFile, PrivateKeyFile,
   PassPhrase: string): Boolean;
 Var
   M: TMarshaller;
@@ -808,7 +808,8 @@ begin
   if amKey in AuthMethods(UserName) then
     Result := libssh2_userauth_publickey_fromfile(FAddr,
       M.AsAnsi(UserName, FCodePage).ToPointer,
-      nil, M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
+      M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
+      M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
       M.AsAnsi(PassPhrase, FCodePage).ToPointer) = 0
   else
     Result := False;
@@ -820,7 +821,7 @@ begin
   end;
 end;
 
-function TSshSession.UserAuthKey(const UserName: string;
+function TSshSession.UserAuthKey(const UserName, PublicKeyFile,
   PrivateKeyFile: string): Boolean;
 begin
   if FState = session_Authorized then Exit(True);
