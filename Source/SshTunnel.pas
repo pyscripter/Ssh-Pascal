@@ -102,11 +102,13 @@ var
   ReadFds: TFdSet;
   TimeVal: TTimeVal;
   ReturnCode: integer;
+  ThreadId: Integer;
 begin
   FCancelled := False;
   TimeVal.tv_sec := CheckInterval;  // check for cancel every one second
   TimeVal.tv_usec := 0;
   SocketOption := 1; // Initialize SocketOption
+  ThreadId := 0;
 
   ListenSock := GetWinSock.CreateSocketAndListen('localhost', LocalPort);
   setsockopt(ListenSock, SOL_SOCKET, SO_REUSEADDR, @SocketOption, sizeof(SocketOption));
@@ -136,16 +138,19 @@ begin
       TThread.CreateAnonymousThread(procedure
       begin
         try
+          Inc(ThreadId);
+          TThread.NameThreadForDebugging('Connection ' + ThreadId.ToString);
           ServeTunnelConnection(LocalPort, RemoteHost, RemotePort,
             ForwardSock, TimeVal);
         except on E: Exception do
           OutputDebugString(PChar(E.Message));
         end
       end).Start;
+      TThread.Yield;
     until FCancelled;
 
     // Wait for the threads to finish
-    TThread.Sleep(2 * CheckInterval * 1000);
+    TThread.Yield;
   finally
     if ListenSock <> INVALID_SOCKET then closesocket(ListenSock);
   end;
@@ -227,7 +232,7 @@ begin
         FSessionLock.Enter;
         try
           Read := libssh2_channel_read(channel, PAnsiChar(Buf), FBufferSize);
-          if Read = LIBSSH2_ERROR_EAGAIN then
+          if (Read = 0) or (Read = LIBSSH2_ERROR_EAGAIN) then
             // Handle EAGAIN: Go to Wait state
             Continue;
           CheckLibSsh2Result(Read, FSession, 'libssh2_channel_read');
