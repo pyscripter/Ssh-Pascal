@@ -801,16 +801,22 @@ function TSshSession.UserAuthKey(const UserName, PublicKeyFile, PrivateKeyFile,
   PassPhrase: string): Boolean;
 Var
   M: TMarshaller;
+  ReturnValue: Integer;
 begin
   if FState = session_Authorized then Exit(True);
   if FState <> session_Connected then Exit(False);
 
   if amKey in AuthMethods(UserName) then
-    Result := libssh2_userauth_publickey_fromfile(FAddr,
-      M.AsAnsi(UserName, FCodePage).ToPointer,
-      M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
-      M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
-      M.AsAnsi(PassPhrase, FCodePage).ToPointer) = 0
+  begin
+    repeat
+      ReturnValue := libssh2_userauth_publickey_fromfile(FAddr,
+        M.AsAnsi(UserName, FCodePage).ToPointer,
+        M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
+        M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
+        M.AsAnsi(PassPhrase, FCodePage).ToPointer)
+    until ReturnValue <> LIBSSH2_ERROR_EAGAIN;
+    Result := ReturnValue = 0;
+  end
   else
     Result := False;
 
