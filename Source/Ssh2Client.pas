@@ -1051,79 +1051,87 @@ begin
   FBufferSize := 8 * 1024 - 1;
 end;
 
-function ReadStringFromChannel(Session: ISshSession; Channel: PLIBSSH2_CHANNEL;
-  Buf: PAnsiChar; BufLen: size_t; StreamId: Integer; Cancelled: PBoolean): string;
-Var
-  MemoryStream : TMemoryStream;
-  BytesRead: ssize_t;
-begin
-  Result := '';
-  if Cancelled^ then Exit;
-  MemoryStream := TMemoryStream.Create;
-  try
-    Repeat
-      BytesRead :=  libssh2_channel_read_ex(Channel, StreamId, Buf, BufLen);
-      CheckLibSsh2Result(BytesRead, Session, 'libssh2_channel_read_ex');
-      if BytesRead > 0 then
-        MemoryStream.Write(Buf^, BytesRead);
-    Until (BytesRead = 0) or Cancelled^;
-
-    if MemoryStream.Size > 0 then
-      Result := AnsiToUnicode(PAnsiChar(MemoryStream.Memory),
-        MemoryStream.Size, Session.CodePage);
-  finally
-    MemoryStream.Free;
-  end;
-end;
-
 procedure TSshExec.Exec(const Command: string; var Output, ErrOutput: string;
   var ExitCode: Integer);
 var
   Channel: PLIBSSH2_CHANNEL;
   M: TMarshaller;
-  Buffer: TBytes;
+  ReadBuffer, OutBuffer, ErrBuffer: TBytes;
+  StdStream, ErrStream: TBytesStream;
   TimeVal: TTimeVal;
   ReadFds: TFdSet;
+  BytesRead: ssize_t;
   ReturnCode: integer;
+  OldBlocking: Boolean;
 begin
   if FSession.SessionState <>  session_Authorized then
     raise ESshError.CreateRes(@Err_SessionAuth);
-  
+
   FCancelled := False;
   Channel := libssh2_channel_open_session(FSession.Addr);
   if Channel = nil then
     CheckLibSsh2Result(libssh2_session_last_errno(FSession.Addr), FSession,
      'libssh2_channel_open_session');
 
+  TimeVal.tv_sec := 1;  // check for cancel every one second
+  TimeVal.tv_usec := 0;
+
+  StdStream := TBytesStream.Create(OutBuffer);
+  ErrStream := TBytesStream.Create(ErrBuffer);
+  SetLength(ReadBuffer, FBufferSize);
+  OldBlocking := FSession.Blocking;
+  FSession.Blocking := False;
   try
-    CheckLibSsh2Result(libssh2_channel_exec(Channel,
-      M.AsAnsi(Command, FSession.CodePage).ToPointer),
-      FSession, 'libssh2_channel_exec');
-
-    // Wait until there is something to read on the Channel
-    // Stop waiting if cancelled
-    TimeVal.tv_sec := 1;  // check for cancel every one second
-    TimeVal.tv_usec := 0;
     Repeat
-      FD_ZERO(ReadFds);
-      _FD_SET(FSession.Socket, ReadFds);
-      ReturnCode := select(0, @ReadFds, nil, nil, @TimeVal);
-      if ReturnCode < 0 then CheckSocketResult(WSAGetLastError, 'select');
-    Until (ReturnCode > 0) or FCancelled;
+      ReturnCode := libssh2_channel_exec(Channel,
+        M.AsAnsi(Command, FSession.CodePage).ToPointer);
+      CheckLibSsh2Result(ReturnCode, FSession, 'libssh2_channel_exec');
+    Until ReturnCode <> LIBSSH2_ERROR_EAGAIN;
 
-    if not FCancelled then
+    // Stop waiting if cancelled of Channel is sent EOF
+    while not FCancelled do
     begin
-      SetLength(Buffer, FBufferSize);
-      Output := ReadStringFromChannel(FSession, Channel, PAnsiChar(Buffer),
-        FBufferSize, 0, @FCancelled);
-      ErrOutput := ReadStringFromChannel(FSession, Channel, PAnsiChar(Buffer),
-        FBufferSize, SSH_EXTENDED_DATA_STDERR, @FCancelled);
+      // Wait until there is something to read on the Channel
+      Repeat
+        FD_ZERO(ReadFds);
+        _FD_SET(FSession.Socket, ReadFds);
+        ReturnCode := select(0, @ReadFds, nil, nil, @TimeVal);
+        if ReturnCode < 0 then CheckSocketResult(WSAGetLastError, 'select');
+        if libssh2_channel_eof(Channel) = 1 then Break;
+      Until (ReturnCode > 0) or FCancelled;
+
+      try
+        // Standard output
+        BytesRead :=  libssh2_channel_read(Channel, PAnsiChar(ReadBuffer),
+          FBufferSize);
+        CheckLibSsh2Result(BytesRead, FSession, 'libssh2_channel_read_ex');
+        if BytesRead > 0 then
+          StdStream.WriteBuffer(ReadBuffer, BytesRead);
+
+        // Error output
+        BytesRead :=  libssh2_channel_read_stderr(Channel,
+          PAnsiChar(ReadBuffer), FBufferSize);
+        CheckLibSsh2Result(BytesRead, FSession, 'libssh2_channel_read_ex');
+        if BytesRead > 0 then
+          ErrStream.WriteBuffer(ReadBuffer, BytesRead);
+      except
+        on E: Exception do
+          begin
+            OutputDebugString(PChar(E.Message));
+            Break;
+          end;
+      end;
+
+      // BytesRead will be either > 0 or LIBSSH2_ERROR_EAGAIN until
+      // the command is processed
+      if BytesRead = 0 then Break;
     end;
 
-    if FCancelled then
-      // Do not wait for response
-      // Note that the remote process may still be running after we exit
-      FSession.Blocking := False;
+    Output := AnsiToUnicode(PAnsiChar(StdStream.Memory),
+        StdStream.Size, FSession.CodePage);
+    ErrOutput := AnsiToUnicode(PAnsiChar(ErrStream.Memory),
+        ErrStream.Size, FSession.CodePage);
+
     // libssh2_channel_close sends SSH_MSG_CLOSE to the host
     libssh2_channel_close(Channel);
     if FCancelled then
@@ -1131,8 +1139,10 @@ begin
     else
       Exitcode := libssh2_channel_get_exit_status(Channel);
   finally
+    StdStream.Free;
+    ErrStream.Free;
     libssh2_channel_free(Channel);
-    FSession.Blocking := True;
+    FSession.Blocking := OldBlocking;
   end;
 end;
 
