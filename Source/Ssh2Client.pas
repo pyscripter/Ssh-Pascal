@@ -169,6 +169,7 @@ resourcestring
   UnKnownHostPrompt = 'Do you want to continue connecting (yes/no)?';
   Msg_Disconnect = 'Bye';
   Msg_Password = 'Password: ';
+  Msg_PassPhrase = 'Passphrase: ';
   Msg_PrivateKeyInstruction = 'Private key password for "%s"';
 
 function AnsiToUnicode(P: PAnsiChar; CP: Word): string;
@@ -772,7 +773,7 @@ function TSshSession.UserAuthInteractive(const UserName: string): Boolean;
   For some reason libssh2_userauth_keyboard_interactive does not work
   with Windows Hosts.  Do a libssh2_userauth_password instead if possible.
 }
-Var
+var
   UName: TMarshaller;
   Methods: TAuthMethods;
 begin
@@ -799,7 +800,7 @@ end;
 
 function TSshSession.UserAuthKey(const UserName, PublicKeyFile, PrivateKeyFile,
   PassPhrase: string): Boolean;
-Var
+var
   M: TMarshaller;
   ReturnValue: Integer;
 begin
@@ -811,10 +812,11 @@ begin
     repeat
       ReturnValue := libssh2_userauth_publickey_fromfile(FAddr,
         M.AsAnsi(UserName, FCodePage).ToPointer,
-        M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
+        M.AsAnsi(PublicKeyFile, FCodePage).ToPointer,
         M.AsAnsi(PrivateKeyFile, FCodePage).ToPointer,
         M.AsAnsi(PassPhrase, FCodePage).ToPointer)
     until ReturnValue <> LIBSSH2_ERROR_EAGAIN;
+    //CheckLibSsh2Result(ReturnValue, Self, 'libssh2_userauth_publickey_fromfile');
     Result := ReturnValue = 0;
   end
   else
@@ -833,9 +835,9 @@ begin
   if FState = session_Authorized then Exit(True);
   if not HasKeybIntEvent or not (amKey in AuthMethods(UserName)) then Exit(False);
 
-  Result := UserAuthKey(UserName, PrivateKeyFile,
+  Result := UserAuthKey(UserName, PublicKeyFile, PrivateKeyFile,
       doKeybInt('', Format(Msg_PrivateKeyInstruction, [PrivateKeyFile]),
-      Msg_Password, False));
+      Msg_PassPhrase, False));
 end;
 
 function TSshSession.UserAuthPass(const UserName, Password: string): Boolean;
@@ -902,7 +904,7 @@ begin
 end;
 
 procedure TScp.Receive(const RemoteFile, LocalFile: string);
-Var
+var
   FileStream: TFileStream;
 begin
   FileStream := TFileStream.Create(LocalFile, fmCreate or fmOpenWrite);
@@ -1001,7 +1003,7 @@ end;
 
 procedure TScp.Send(const LocalFile, RemoteFile: string;
   Permissions: TFilePermissions; MTime: TDateTime; ATime: TDateTime);
-Var
+var
   FileStream: TFileStream;
 begin
   FileStream := TFileStream.Create(LocalFile, fmOpenRead);
