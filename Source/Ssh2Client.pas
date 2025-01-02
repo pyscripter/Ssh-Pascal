@@ -79,7 +79,7 @@ type
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
       const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
-    procedure Connect(IPVersion: TIPVersion = IPv4);
+    procedure Connect(UseDefaultMem: Boolean = False; IPVersion: TIPVersion = IPv4);
     procedure Disconnect;
     function AuthMethods(UserName: string): TAuthMethods;
     {
@@ -291,7 +291,7 @@ type
     procedure ConfigKeepAlive(WantServerReplies: Boolean; IntervalInSecs: Cardinal);
     procedure ConfigKnownHostCheckPolicy(EnableCheck: Boolean;
       const Policy: TKnownHostCheckPolicy; const KnownHostsFile: string = '');
-    procedure Connect(IPVersion: TIPVersion = IPv4);
+    procedure Connect(UseDefaultMem: Boolean = False; IPVersion: TIPVersion = IPv4);
     procedure CheckKnownHost;
     function AuthMethods(UserName: string): TAuthMethods;
     function UserAuth(const UserName: string): Boolean;
@@ -315,7 +315,7 @@ type
 {       Memory                                          }
 { ----------------------------------------------------- }
 
-function  malloc(size: size_t; abstract: PPointer): Pointer; cdecl;
+function malloc(size: size_t; abstract: PPointer): Pointer; cdecl;
 begin
   Result := AllocMem(size);
 end;
@@ -455,10 +455,14 @@ begin
   FKnownHostCheckSettings.Policy := Policy;
 end;
 
-procedure TSshSession.Connect(IPVersion: TIPVersion = IPv4);
+procedure TSshSession.Connect(UseDefaultMem: Boolean = False;
+  IPVersion: TIPVersion = IPv4);
 begin
   FSock := FWinSock.CreateAndConnectSocket(FHost, FPort, IPVersion);
-  FAddr := libssh2_session_init_ex(malloc, mfree, realloc, Pointer(Self));
+  if UseDefaultMem then
+    FAddr := libssh2_session_init_ex(nil, nil, nil, Pointer(Self))
+  else
+    FAddr := libssh2_session_init_ex(malloc, mfree, realloc, Pointer(Self));
   if Faddr = nil then
     raise ESshError.CreateRes(@Err_SessionInit);
   libssh2_session_flag(FAddr, LIBSSH2_FLAG_COMPRESS, IfThen(FCompression, 1, 0));
@@ -643,6 +647,7 @@ begin
     // Unlikely but SSH_USERAUTH_NONE succeded!
     FState := session_Connected;
   Result := FAuthMethods;
+  FAuthMethodsCached := True;
 end;
 
 procedure KbdInteractiveCallback(const Name: PAnsiChar; name_len: Integer;
