@@ -100,6 +100,7 @@ type
     // Set timeout for blocking functions
     // - aTimeoutInMs: Timeout in milliseconds.
     procedure SetTimeout(aTimeoutInMs: LongInt);
+    procedure Trace(BitMask: Integer);
     property Addr: PLIBSSH2_SESSION read GetAddr;
     property SessionState: TSessionState read GetSessionState;
     property Blocking: Boolean read GetBlocking write SetBlocking;
@@ -308,6 +309,7 @@ type
     // Set timeout for blocking functions
     // - aTimeoutInMs: Timeout in milliseconds.
     procedure SetTimeout(aTimeoutInMs: LongInt);
+    procedure Trace(BitMask: Integer);
   public
     constructor Create(Host: string; Port: Word);
     destructor Destroy; override;
@@ -625,6 +627,12 @@ end;
 procedure TSshSession.SetUseCompression(Compress: Boolean);
 begin
   FCompression := Compress;
+end;
+
+procedure TSshSession.Trace(BitMask: Integer);
+begin
+  CheckLibSsh2Result(libssh2_trace(FAddr, BitMask),
+    Self, 'libssh2_trace');
 end;
 
 function TSshSession.AuthMethods(UserName: string): TAuthMethods;
