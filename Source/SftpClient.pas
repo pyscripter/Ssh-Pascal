@@ -564,7 +564,7 @@ begin
     Delims := Delims +  DriveDelim;
 
   I := LastDelimiter(Delims, FileName);
-  Result := Copy(FileName, 1, I + 1);
+  Result := Copy(FileName, 1, I);
 end;
 
 function TSFtpClient.FileExists(const FileName: string;
