@@ -90,21 +90,31 @@ end;
 
 function TWinSock.CreateAndConnectSocket(Host: string; Port: Word; IPVersion: TIPVersion = IPv4): TSocket;
 Var
-  AddrInfo: PaddrinfoW;
-  ReturnCode : Integer;
+  AddrInfo, Addr: PaddrinfoW;
+  ErrorCode : Integer;
 begin
   AddrInfo := nil;
   Result := CreateSocket(Host, Port, IPVersion, AddrInfo);
 
   try
-    ReturnCode := 0;
-    while AddrInfo <> nil do
+    ErrorCode := WSAHOST_NOT_FOUND;
+    Addr := AddrInfo;
+    while Addr <> nil do
     begin
-      ReturnCode := connect(Result, AddrInfo^.ai_addr^, AddrInfo^.ai_addrlen);
-      if ReturnCode = 0 then break;
-      AddrInfo := AddrInfo^.ai_next;
+      if connect(Result, Addr^.ai_addr^, Addr^.ai_addrlen) = 0 then
+      begin
+        ErrorCode := 0;
+        break;
+      end;
+      ErrorCode := WSAGetLastError;
+      Addr := Addr^.ai_next;
     end;
-    CheckSocketResult(ReturnCode, 'connect');
+    if ErrorCode <> 0 then
+    begin
+      closesocket(Result);
+      Result := INVALID_SOCKET;
+      CheckSocketResult(ErrorCode, 'connect');
+    end;
   finally
     if AddrInfo <> nil then FreeAddrInfoW(AddrInfo);
   end;
@@ -113,22 +123,38 @@ end;
 function TWinSock.CreateSocketAndListen(Host: string; Port: Word;
   IPVersion: TIPVersion; Backlog: Integer): TSocket;
 Var
-  AddrInfo: PaddrinfoW;
-  ReturnCode : Integer;
+  AddrInfo, Addr: PaddrinfoW;
+  ErrorCode : Integer;
+  Op: string;
 begin
   AddrInfo := nil;
   Result := CreateSocket(Host, Port, IPVersion, AddrInfo);
 
   try
-    ReturnCode := 0;
-    while AddrInfo <> nil do
+    Op := 'bind';
+    ErrorCode := WSAHOST_NOT_FOUND;
+    Addr := AddrInfo;
+    while Addr <> nil do
     begin
-      ReturnCode := bind(Result, AddrInfo^.ai_addr^, AddrInfo^.ai_addrlen);
-      if ReturnCode = 0 then break;
-      AddrInfo := AddrInfo^.ai_next;
+      if bind(Result, Addr^.ai_addr^, Addr^.ai_addrlen) = 0 then
+      begin
+        ErrorCode := 0;
+        break;
+      end;
+      ErrorCode := WSAGetLastError;
+      Addr := Addr^.ai_next;
     end;
-    CheckSocketResult(ReturnCode, 'bind');
-    CheckSocketResult(listen(Result, 2), 'listen');
+    if (ErrorCode = 0) and (listen(Result, 2) <> 0) then
+    begin
+      Op := 'listen';
+      ErrorCode := WSAGetLastError;
+    end;
+    if ErrorCode <> 0 then
+    begin
+      closesocket(Result);
+      Result := INVALID_SOCKET;
+      CheckSocketResult(ErrorCode, Op);
+    end;
   finally
     if AddrInfo <> nil then FreeAddrInfoW(AddrInfo);
   end;
@@ -153,6 +179,7 @@ function TWinSock.CreateSocket(Host: string; Port: Word;
   IPVersion: TIPVersion; var AddrInfo: PAddrInfoW): TSocket;
 var
   Hints: TAddrInfoW;
+  ErrorCode: Integer;
 begin
   Result := socket(Ord(IpVersion), SOCK_STREAM, IPPROTO_TCP);
   if Result = INVALID_SOCKET then
@@ -161,7 +188,12 @@ begin
   Hints.ai_family := Ord(IpVersion);
   Hints.ai_socktype := SOCK_STREAM;
   Hints.ai_protocol := IPPROTO_TCP;
-  CheckSocketResult(GetaddrinfoW(PChar(Host), PChar(Port.ToString), @Hints, AddrInfo), 'GetaddrinfoW');
+  ErrorCode := GetaddrinfoW(PChar(Host), PChar(Port.ToString), @Hints, AddrInfo);
+  if ErrorCode <> 0 then
+  begin
+    closesocket(Result);
+    CheckSocketResult(ErrorCode, 'GetaddrinfoW');
+  end;
 end;
 
 end.
