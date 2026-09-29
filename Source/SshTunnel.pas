@@ -200,7 +200,7 @@ begin
       _FD_SET(ChannelSock, ReadFds);
       // wait for action
       ReturnCode := select(0, @ReadFds, nil, nil, @TimeVal);
-      if ReturnCode < 0 then CheckSocketResult(ReturnCode, 'select');
+      if ReturnCode < 0 then CheckSocketResult(WSAGetLastError, 'select');
       if ReturnCode = 0 then Continue;
       if FCancelled then Exit;
 
